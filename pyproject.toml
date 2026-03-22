@@ -1,0 +1,15 @@
+[project]
+name = "quik-from-python"
+version = "0.1.0"
+description = "Benchmark: Inverse Kinematics from Python using various methods"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "ikpy",
+    "scipy",
+    "pybind11",
+    "pytracik",
+    "optik-py",
+]

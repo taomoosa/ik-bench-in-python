@@ -1,0 +1,15 @@
+AGPL-3.0 License
+
+Copyright (c) 2026 Contributors
+
+This directory contains code that links against the quik library
+(https://github.com/steffanlloyd/quik), which is licensed under the
+GNU Affero General Public License v3.0 (AGPL-3.0).
+
+As a derivative work, the source code in this directory is also licensed
+under the AGPL-3.0. You may obtain a copy of the full license at:
+
+    https://www.gnu.org/licenses/agpl-3.0.html
+
+SPDX-License-Identifier: AGPL-3.0-only
+
