@@ -1,5 +1,5 @@
 [project]
-name = "quik-from-python"
+name = "ik-bench-in-python"
 version = "0.1.0"
 description = "Benchmark: Inverse Kinematics from Python using various methods"
 readme = "README.md"

@@ -7,21 +7,26 @@ import os
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from common.robots import get_robot, generate_test_poses
+from common.robots import (get_robot, generate_test_poses, compute_joint_metrics,
+                           generate_linear_paths, compute_linearity, forward_kinematics)
 from ik_newton import ik_newton
 
 
-def run_benchmark(n=100, robot_name="kuka_kr6", near_init=True):
+def run_benchmark(n=100, robot_name="kuka_kr6", mode="near", timeout_us=0):
+    if mode == "linear":
+        return run_linear_benchmark(n, robot_name, timeout_us=timeout_us)
     robot = get_robot(robot_name)
     dh = robot["dh_params"]
-    _, q_init, targets = generate_test_poses(robot_name, n, near_init=near_init)
+    q_true, q_init, targets = generate_test_poses(robot_name, n, mode=mode)
 
     errors = []
+    q_stars = []
     total_start = time.perf_counter()
 
     for i in range(n):
         q_star, err, iters = ik_newton(targets[i], q_init[i], dh)
         errors.append(err)
+        q_stars.append(q_star)
 
     total_elapsed = time.perf_counter() - total_start
 
@@ -36,10 +41,69 @@ def run_benchmark(n=100, robot_name="kuka_kr6", near_init=True):
     print(f"max_error: {np.max(errors):.2e}")
     print(f"mean_error: {np.mean(errors):.2e}")
     print(f"median_error: {np.median(errors):.2e}")
+    jm = compute_joint_metrics(np.array(q_stars), q_true, errors,
+                              dh_params=robot["dh_params"], fk_threshold=1e-6)
+    print(f"joint_match_rate: {jm['joint_match_rate']:.4f}")
+    print(f"joint_err_median: {jm['joint_err_median']:.2e}")
+    if "same_aspect_rate" in jm:
+        print(f"same_aspect_rate: {jm['same_aspect_rate']:.4f}")
+        print(f"diff_aspect_rate: {jm['diff_aspect_rate']:.4f}")
+        print(f"cuspidal_swap_rate: {jm['cuspidal_swap_rate']:.4f}")
+
+
+def run_linear_benchmark(n_paths, robot_name, timeout_us=0):
+    robot = get_robot(robot_name)
+    dh = robot["dh_params"]
+    paths = generate_linear_paths(robot_name, n_paths=n_paths)
+    timeout_s = timeout_us * 1e-6 if timeout_us > 0 else 0
+
+    all_errors = []
+    all_devs = []
+    timeout_count = 0
+    total_start = time.perf_counter()
+    for path in paths:
+        targets = path["targets"]
+        q_cur = path["q_seed"].copy()
+        fk_pos = []
+        for T in targets:
+            t0 = time.perf_counter()
+            q_sol, err, _ = ik_newton(T, q_cur, dh)
+            dt = time.perf_counter() - t0
+            if timeout_s > 0 and dt > timeout_s:
+                timeout_count += 1
+                all_errors.append(float("inf"))
+                fk_pos.append(T[:3, 3])
+            else:
+                all_errors.append(err)
+                T_fk = forward_kinematics(q_sol, dh)
+                fk_pos.append(T_fk[:3, 3])
+                q_cur = q_sol
+        lin = compute_linearity(np.array(fk_pos), path["ideal_pos"])
+        all_devs.append(lin)
+    total_elapsed = time.perf_counter() - total_start
+
+    errors = np.array(all_errors)
+    n_total = len(errors)
+    success = np.sum(errors < 1e-6)
+    total_us = total_elapsed * 1e6
+    max_devs = [d["max_dev"] for d in all_devs]
+    mean_devs = [d["mean_dev"] for d in all_devs]
+    print(f"method: numpy_newton")
+    print(f"num_solves: {n_total}")
+    print(f"total_time_us: {total_us:.1f}")
+    print(f"per_solve_us: {total_us/n_total:.1f}")
+    print(f"success_rate: {success/n_total:.4f}")
+    print(f"max_error: {np.max(errors):.2e}")
+    print(f"median_error: {np.median(errors):.2e}")
+    print(f"timeout_count: {timeout_count}")
+    print(f"timeout_rate: {timeout_count/n_total:.4f}")
+    print(f"linearity_max_dev: {np.max(max_devs):.2e}")
+    print(f"linearity_mean_dev: {np.mean(mean_devs):.2e}")
 
 
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 100
     mode = sys.argv[2] if len(sys.argv) > 2 else "near"
     robot = sys.argv[3] if len(sys.argv) > 3 else "kuka_kr6"
-    run_benchmark(n, robot_name=robot, near_init=(mode != "random"))
+    timeout_us = int(sys.argv[4]) if len(sys.argv) > 4 else 0
+    run_benchmark(n, robot_name=robot, mode=mode, timeout_us=timeout_us)

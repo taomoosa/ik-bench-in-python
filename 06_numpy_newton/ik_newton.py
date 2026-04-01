@@ -76,7 +76,7 @@ def hgt_diff(T1, T2):
     return e
 
 
-def ik_newton(target, q0, dh, max_iter=200, tol=1e-12,
+def ik_newton(target, q0, dh, max_iter=500, tol=1e-12,
               lambda2=1e-10, max_linear_step=0.34, max_angular_step=1.0):
     """Damped Newton (Levenberg-Marquardt) inverse kinematics."""
     q = q0.copy()

@@ -3,6 +3,29 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
+name = "ik-bench-in-python"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "ikpy" },
+    { name = "numpy" },
+    { name = "optik-py" },
+    { name = "pybind11" },
+    { name = "pytracik" },
+    { name = "scipy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ikpy" },
+    { name = "numpy" },
+    { name = "optik-py" },
+    { name = "pybind11" },
+    { name = "pytracik" },
+    { name = "scipy" },
+]
+
+[[package]]
 name = "ikpy"
 version = "3.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -121,29 +144,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/27/21/9b6abae852005bdd1252d6f763c01a45fa23adc02dffc7d72a9acfddcd5c/pytracik-0.0.3-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:766ea115400853a9bfe8aaadab17b5646ce43beff067d1822384efd5c2764899", size = 5557025, upload-time = "2026-03-08T16:52:39.36Z" },
     { url = "https://files.pythonhosted.org/packages/54/82/a8c734fe52061d7b16fa0d10d0ed4df57aa9982b390aaacaa8c05f54e44a/pytracik-0.0.3-cp313-cp313-manylinux_2_34_x86_64.whl", hash = "sha256:d56e81d69ffc94eb576854307b280ac0280248c2b67fd3df45d4027867234453", size = 998400, upload-time = "2026-03-08T16:52:41.036Z" },
     { url = "https://files.pythonhosted.org/packages/3e/18/f57633083b322675080551a113b57386b35bc8025bbfc19b649acc912e68/pytracik-0.0.3-cp313-cp313-win_amd64.whl", hash = "sha256:cab9550fba0806d5ef87b1cac32787be5e620ae49cedc6cbd0c971fbdeace80f", size = 512820, upload-time = "2026-03-08T16:52:42.72Z" },
-]
-
-[[package]]
-name = "quik-from-python"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "ikpy" },
-    { name = "numpy" },
-    { name = "optik-py" },
-    { name = "pybind11" },
-    { name = "pytracik" },
-    { name = "scipy" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "ikpy" },
-    { name = "numpy" },
-    { name = "optik-py" },
-    { name = "pybind11" },
-    { name = "pytracik" },
-    { name = "scipy" },
 ]
 
 [[package]]

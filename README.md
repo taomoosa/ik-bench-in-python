@@ -1,13 +1,14 @@
-# quik-from-python
+# ik-bench-in-python
 
-A benchmark project comparing speed and accuracy of various methods for calling robot inverse kinematics (IK) from Python.
-Benchmarks are run for two robots across eight methods.
+A benchmark project comparing speed, accuracy, and solution-branch behaviour of various inverse kinematics (IK) solvers called from Python.
+Benchmarks are run for three robots across eight methods with five initialisation modes.
 
 ## Target Robots
 
 | Robot | DOF | Description |
 |-------|-----|-------------|
 | KUKA KR6 | 6 | Industrial robot with spherical wrist (closed-form solution exists) |
+| FANUC CRX-10iA | 6 | Non-spherical wrist with 0.15 m d6 offset (no closed-form solution) |
 | Franka Panda | 7 | Redundant collaborative robot (no closed-form solution) |
 
 ## Methods
@@ -23,6 +24,35 @@ Benchmarks are run for two robots across eight methods.
 | 7 | TRAC-IK | `07_tracik/` | TRAC-IK solver via pytracik Python binding |
 | 8 | OptIK | `08_optik/` | OptIK solver via optik-py Python binding |
 
+## Initialisation Modes
+
+| Mode | Description |
+|------|-------------|
+| `near` | q_true ± 0.1 — local convergence test |
+| `far` | q_true ± 1.0 — medium-distance convergence |
+| `j1_offset` | q_true with only J1 offset by ±π |
+| `zeros` | All-zero initial guess (home position) |
+| `random` | U[−π, π] — global search |
+| `linear` | Straight-line Cartesian path — sequential warm-starting linearity test |
+
+### Linear Path Benchmark
+
+When mode is `linear`, the benchmark generates straight-line Cartesian paths
+(default: 150 mm, 21 waypoints) starting from random reachable configurations.
+The orientation is held constant along each path.
+
+For each path, the first waypoint uses a slightly perturbed seed (q_start ± 0.1).
+Subsequent waypoints use the previous IK solution as the initial guess (warm-starting).
+After solving all waypoints, FK is computed for each solution and the resulting
+end-effector positions are compared to the ideal straight line.
+
+The linearity deviation table reports:
+- **Max dev** — worst-case perpendicular distance from the ideal line (mm)
+- **Mean dev** — average perpendicular distance across all paths (mm)
+
+This measures how well each solver maintains Cartesian path fidelity when
+following a sequential trajectory — important for real-world motion planning.
+
 ## Setup
 
 ### Prerequisites
@@ -36,8 +66,8 @@ Benchmarks are run for two robots across eight methods.
 
 ```bash
 # Clone this repository
-git clone <repository-url>
-cd quik-from-python
+git clone https://github.com/taomoosa/ik-bench-in-python.git
+cd ik-bench-in-python
 
 # Clone the quik library and patch debug output
 git clone https://github.com/steffanlloyd/quik.git external/quik
@@ -73,20 +103,21 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DQUIK_DIR=/path/to/quik
 ## Running Benchmarks
 
 ```bash
-# Compare all robots and methods (N=1000, default)
+# Compare all robots and methods (N=1000, defaults: all robots, modes=near,random)
 uv run python benchmark_all.py
 
-# Specify problem count and robot
+# Specify problem count, robots, and modes
 uv run python benchmark_all.py 100 kuka_kr6
-uv run python benchmark_all.py 500 panda
-uv run python benchmark_all.py 1000 kuka_kr6,panda
+uv run python benchmark_all.py 500 panda near,far,random
+uv run python benchmark_all.py 1000 kuka_kr6,fanuc_crx10ia,panda near,far,j1_offset,zeros,random
+uv run python benchmark_all.py 50 kuka_kr6,panda near,linear
 
-# Run individual methods (args: N, mode[near/random], robot)
+# Run individual methods (args: N, mode, robot)
 uv run python 04_quik_pybind11/benchmark.py 100 near panda
 uv run python 05_ikpy/benchmark.py 100 random kuka_kr6
-uv run python 06_numpy_newton/benchmark.py 100 near panda
-uv run python 07_tracik/benchmark.py 100 near kuka_kr6
-uv run python 08_optik/benchmark.py 100 random panda
+uv run python 06_numpy_newton/benchmark.py 100 zeros fanuc_crx10ia
+uv run python 07_tracik/benchmark.py 100 linear kuka_kr6
+uv run python 08_optik/benchmark.py 100 far panda
 ```
 
 ## Benchmark Results
@@ -94,27 +125,39 @@ uv run python 08_optik/benchmark.py 100 random panda
 Run the full benchmark to generate current results:
 
 ```bash
-uv run python benchmark_all.py 1000 kuka_kr6,panda
+uv run python benchmark_all.py 1000 kuka_kr6,fanuc_crx10ia,panda
 ```
+
+### Output Tables
+
+The benchmark outputs the following tables per robot:
+
+1. **Speed** — per-solve time (μs) and ratio to fastest method
+2. **Success rate** — fraction of solves with FK error < threshold
+3. **Median FK error** — pose-space accuracy
+4. **Linearity deviation** (linear mode only) — max/mean perpendicular distance from ideal path (mm)
+5. **Joint match rate** — fraction where solved q ≈ true q (2π-wrapped, threshold 0.1 rad)
+6. **Aspect match** (6-DOF only) — same-aspect vs cross-aspect solutions
+7. **Cuspidal swaps** (6-DOF only) — branch changes without crossing det(J) = 0
 
 ### Notes
 
 - All Python-to-C++ calls are issued one at a time, N queries from Python
 - subprocess is the slowest due to process startup overhead on every call
 - pybind11 maintains near-C++ speed since it is a direct function call
-- TRAC-IK and OptIK require URDF files, generated automatically from DH parameters
+- TRAC-IK and OptIK require URDF files, generated automatically from DH parameters and cached in `common/.urdf_cache/`
 - quik IKSolver parameters follow the official sample (`sample_cpp_usage.cpp`)
   - `lambda_squared=1e-10` damping suppresses divergence near singularities
 
 ## Project Structure
 
 ```
-quik-from-python/
+ik-bench-in-python/
 ├── pyproject.toml              # uv project configuration
 ├── uv.lock                     # Dependency lock file
 ├── benchmark_all.py            # Combined benchmark for all methods
-├── common/                     # Shared robot definitions
-│   └── robots.py               # DH parameters (KR6, Panda)
+├── common/                     # Shared robot definitions and utilities
+│   └── robots.py               # DH parameters, FK, Jacobian, URDF generation
 ├── external/quik/              # quik library (manual clone)
 ├── 01_quik_cpp_reference/      # Pure C++ benchmark
 │   ├── CMakeLists.txt
